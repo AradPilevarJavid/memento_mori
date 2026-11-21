@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memento-mori"
+version = "0.1.0"
+description = "A notification-first philosophical companion about mortality, power, and human nature."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+memento = "memento.cli:main"
+
+[tool.setuptools]
+packages = ["memento"]
+
+[tool.setuptools.package-data]
+memento = ["content.json"]
