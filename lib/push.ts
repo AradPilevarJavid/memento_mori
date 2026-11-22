@@ -1,3 +1,5 @@
+import { loadPreferences } from "./storage";
+
 export type PushResult =
   | { status: "subscribed"; endpoint: string }
   | { status: "unsupported" | "denied" | "unconfigured"; message: string }
@@ -63,7 +65,10 @@ export async function subscribeToPush(): Promise<PushResult> {
     const response = await fetch("/api/push/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(subscription.toJSON()),
+      body: JSON.stringify({
+        ...subscription.toJSON(),
+        preferences: loadPreferences(),
+      }),
     });
 
     if (!response.ok) {

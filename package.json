@@ -6,13 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "scheduler": "tsx scripts/scheduler.ts",
+    "scheduler:once": "tsx scripts/scheduler.ts --once",
     "typecheck": "tsc --noEmit",
+    "test": "npm run test:web && npm run test:python",
+    "test:web": "tsx --test tests/schedule.test.ts",
+    "test:python": "python3 -m unittest discover -s tests",
     "setup:vapid": "node scripts/generate-vapid-keys.mjs"
   },
   "dependencies": {
     "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "tsx": "^4.23.15",
     "web-push": "^4.0.0"
   },
   "devDependencies": {

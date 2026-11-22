@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { removeJob } from "@/lib/server/queue";
 import { removeSubscription } from "@/lib/server/subscriptions";
 
 export const runtime = "nodejs";
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
 
   try {
     await removeSubscription(endpoint);
+    await removeJob(endpoint);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(

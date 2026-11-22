@@ -1,4 +1,4 @@
-import contentData from "@/memento/content.json";
+import contentData from "../memento/content.json";
 
 export type Category = "emperors" | "power" | "philosophy" | "mortality" | "humility";
 export type EntryFormat = "statement" | "question" | "reflection" | "paradox" | "observation";

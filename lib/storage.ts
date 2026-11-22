@@ -1,3 +1,10 @@
+import {
+  DEFAULT_DELIVERY_PREFERENCES,
+  browserTimezone,
+  normalizeDeliveryPreferences,
+  type DeliveryPreferences,
+} from "./delivery";
+
 export type HistorySource = "web" | "notification" | "push";
 
 export interface HistoryRecord {
@@ -6,19 +13,9 @@ export interface HistoryRecord {
   source: HistorySource;
 }
 
-export interface Preferences {
-  quietStart: string;
-  quietEnd: string;
-  minMinutes: number;
-  maxMinutes: number;
-}
+export type Preferences = DeliveryPreferences;
 
-export const DEFAULT_PREFERENCES: Preferences = {
-  quietStart: "22:00",
-  quietEnd: "08:00",
-  minMinutes: 45,
-  maxMinutes: 180,
-};
+export const DEFAULT_PREFERENCES: Preferences = { ...DEFAULT_DELIVERY_PREFERENCES };
 
 const HISTORY_KEY = "memento.history.v1";
 const PREFERENCES_KEY = "memento.preferences.v1";
@@ -84,32 +81,7 @@ export function clearHistory(): void {
 
 export function loadPreferences(): Preferences {
   const stored = readJson<Partial<Preferences>>(PREFERENCES_KEY, {});
-  const preferences = { ...DEFAULT_PREFERENCES, ...stored };
-
-  const validTime = /^([01]\d|2[0-3]):[0-5]\d$/;
-  const quietStart =
-    typeof preferences.quietStart === "string" && validTime.test(preferences.quietStart)
-      ? preferences.quietStart
-      : DEFAULT_PREFERENCES.quietStart;
-  const quietEnd =
-    typeof preferences.quietEnd === "string" && validTime.test(preferences.quietEnd)
-      ? preferences.quietEnd
-      : DEFAULT_PREFERENCES.quietEnd;
-  const minMinutes =
-    typeof preferences.minMinutes === "number" && preferences.minMinutes > 0
-      ? preferences.minMinutes
-      : DEFAULT_PREFERENCES.minMinutes;
-  const maxMinutes =
-    typeof preferences.maxMinutes === "number" && preferences.maxMinutes > 0
-      ? preferences.maxMinutes
-      : DEFAULT_PREFERENCES.maxMinutes;
-
-  return {
-    quietStart,
-    quietEnd,
-    minMinutes,
-    maxMinutes: Math.max(minMinutes, maxMinutes),
-  };
+  return normalizeDeliveryPreferences(stored, browserTimezone());
 }
 
 export function savePreferences(preferences: Preferences): void {

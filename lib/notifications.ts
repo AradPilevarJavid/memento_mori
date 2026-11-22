@@ -1,4 +1,4 @@
-import { attributionLines, CATEGORY_META, type Entry } from "@/lib/content";
+import { attributionLines, CATEGORY_META, type Entry } from "./content";
 
 export interface NotificationPayload {
   title: string;

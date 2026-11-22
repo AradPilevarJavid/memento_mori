@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { scheduleInitialDelivery } from "@/lib/server/delivery-service";
 import { isValidSubscription, saveSubscription } from "@/lib/server/subscriptions";
 
 export const runtime = "nodejs";
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
 
   try {
     const stored = await saveSubscription(payload);
+    await scheduleInitialDelivery(stored).catch(() => undefined);
     return NextResponse.json({ ok: true, endpoint: stored.endpoint });
   } catch (error) {
     return NextResponse.json(

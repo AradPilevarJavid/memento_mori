@@ -138,10 +138,26 @@ Initial implementation work:
 The implementation should validate a web-first, cross-platform architecture before committing to separate native applications.
 
 - **Web/PWA:** Next.js and TypeScript.
-- **Backend:** Python with FastAPI, introduced when server-side scheduling and push delivery are needed.
+- **Backend:** Next.js server routes and a standalone Node scheduler for the current web/PWA delivery system. A Python/FastAPI service can replace the scheduler if operational needs require it.
 - **Push notifications:** Service workers and Web Push for the initial cross-platform implementation.
 - **Local data:** Browser-local storage for preferences and private context by default.
 - **AI:** A provider abstraction that can support cloud models and optional local inference.
 - **Native platforms:** Evaluate Android and Windows wrappers only when platform testing demonstrates a concrete need.
 
 These are implementation directions, not reasons to over-engineer the first milestone. Step 1 should establish the content, voice, and notification experience that make MEMENTO worth building.
+
+## Running locally
+
+```bash
+npm install
+npm run setup:vapid
+npm run dev
+```
+
+In a second terminal, start the delivery scheduler:
+
+```bash
+npm run scheduler
+```
+
+Use `npm run scheduler:once` for a single pass, and add `-- --dry-run` to inspect due work without sending. Scheduler state lives in `.data/` by default; set `MEMENTO_DATA_DIR` to move it. Run `npm test` for the web and Python test suites.

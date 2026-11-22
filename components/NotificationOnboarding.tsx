@@ -56,6 +56,7 @@ export function NotificationOnboarding() {
     if (subscription.status === "subscribed") {
       setPushState("on");
       setMessage("Push notifications are enabled on this device.");
+      window.dispatchEvent(new Event("memento:push"));
     } else {
       setPushState(subscription.status === "unconfigured" ? "unsupported" : "off");
       setMessage(subscription.message);
@@ -69,6 +70,9 @@ export function NotificationOnboarding() {
     const result = await unsubscribeFromPush();
     setPushState(result.ok ? "off" : "on");
     setMessage(result.ok ? "Push notifications are disabled." : result.message ?? "Could not disable push.");
+    if (result.ok) {
+      window.dispatchEvent(new Event("memento:push"));
+    }
     setBusy(false);
   };
 

@@ -3,6 +3,7 @@ import { sendNotification } from "web-push";
 
 import { ENTRIES, getEntry, selectEntry } from "@/lib/content";
 import { notificationPayload } from "@/lib/notifications";
+import { removeJob } from "@/lib/server/queue";
 import { listSubscriptions, removeSubscription } from "@/lib/server/subscriptions";
 import { configureWebPush, vapidConfigured } from "@/lib/server/vapid";
 
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
     const statusCode = (result.reason as { statusCode?: number } | undefined)?.statusCode;
     if (statusCode === 404 || statusCode === 410) {
       void removeSubscription(subscriptions[index].endpoint);
+      void removeJob(subscriptions[index].endpoint);
     }
   });
 

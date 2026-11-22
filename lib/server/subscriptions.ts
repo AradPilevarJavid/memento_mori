@@ -1,5 +1,9 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import {
+  normalizeDeliveryPreferences,
+  type DeliveryOutcome,
+  type DeliveryPreferences,
+} from "../delivery";
+import { readJsonFile, writeJsonFile } from "./data";
 
 export interface PushSubscriptionPayload {
   endpoint: string;
@@ -8,6 +12,7 @@ export interface PushSubscriptionPayload {
     auth: string;
   };
   expirationTime?: number | null;
+  preferences?: Partial<DeliveryPreferences>;
 }
 
 export interface StoredSubscription {
@@ -18,17 +23,22 @@ export interface StoredSubscription {
   };
   expirationTime: number | null;
   createdAt: string;
+  updatedAt: string;
+  preferences: DeliveryPreferences;
+  lastDeliveredAt?: string;
+  lastEntryId?: string;
+  dailyDate?: string;
+  dailyCount?: number;
+  failures?: number;
+  outcomes: DeliveryOutcome[];
 }
 
 interface SubscriptionFile {
   version: number;
-  subscriptions: StoredSubscription[];
+  subscriptions: unknown[];
 }
 
-function dataFile(): string {
-  const directory = process.env.MEMENTO_DATA_DIR ?? path.join(process.cwd(), ".data");
-  return path.join(directory, "push-subscriptions.json");
-}
+const SUBSCRIPTIONS_FILE = "push-subscriptions.json";
 
 export function isValidSubscription(value: unknown): value is PushSubscriptionPayload {
   if (!value || typeof value !== "object") {
@@ -45,20 +55,100 @@ export function isValidSubscription(value: unknown): value is PushSubscriptionPa
   );
 }
 
+function normalizeOutcome(value: unknown): DeliveryOutcome | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const outcome = value as Partial<DeliveryOutcome>;
+  if (
+    typeof outcome.at !== "string" ||
+    typeof outcome.entryId !== "string" ||
+    (outcome.status !== "sent" &&
+      outcome.status !== "failed" &&
+      outcome.status !== "expired" &&
+      outcome.status !== "skipped")
+  ) {
+    return null;
+  }
+
+  return {
+    at: outcome.at,
+    entryId: outcome.entryId,
+    status: outcome.status,
+    statusCode:
+      typeof outcome.statusCode === "number" ? outcome.statusCode : undefined,
+    error: typeof outcome.error === "string" ? outcome.error : undefined,
+  };
+}
+
+function normalizeSubscription(value: unknown): StoredSubscription | null {
+  if (!isValidSubscription(value)) {
+    return null;
+  }
+
+  const raw = value as Partial<StoredSubscription> & PushSubscriptionPayload;
+  const createdAt =
+    typeof raw.createdAt === "string" && !Number.isNaN(Date.parse(raw.createdAt))
+      ? raw.createdAt
+      : new Date().toISOString();
+  const outcomes = Array.isArray(raw.outcomes)
+    ? raw.outcomes
+        .map(normalizeOutcome)
+        .filter((outcome): outcome is DeliveryOutcome => outcome !== null)
+    : [];
+
+  return {
+    endpoint: raw.endpoint,
+    keys: {
+      p256dh: raw.keys.p256dh,
+      auth: raw.keys.auth,
+    },
+    expirationTime:
+      typeof raw.expirationTime === "number" ? raw.expirationTime : null,
+    createdAt,
+    updatedAt:
+      typeof raw.updatedAt === "string" && !Number.isNaN(Date.parse(raw.updatedAt))
+        ? raw.updatedAt
+        : createdAt,
+    preferences: normalizeDeliveryPreferences(raw.preferences),
+    lastDeliveredAt:
+      typeof raw.lastDeliveredAt === "string" ? raw.lastDeliveredAt : undefined,
+    lastEntryId: typeof raw.lastEntryId === "string" ? raw.lastEntryId : undefined,
+    dailyDate: typeof raw.dailyDate === "string" ? raw.dailyDate : undefined,
+    dailyCount:
+      typeof raw.dailyCount === "number" && Number.isInteger(raw.dailyCount)
+        ? raw.dailyCount
+        : undefined,
+    failures:
+      typeof raw.failures === "number" && Number.isInteger(raw.failures)
+        ? raw.failures
+        : undefined,
+    outcomes,
+  };
+}
+
 export async function listSubscriptions(): Promise<StoredSubscription[]> {
-  try {
-    const raw = await fs.readFile(dataFile(), "utf8");
-    const parsed = JSON.parse(raw) as SubscriptionFile;
-    if (!parsed || !Array.isArray(parsed.subscriptions)) {
-      return [];
-    }
-    return parsed.subscriptions.filter((subscription) => isValidSubscription(subscription));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return [];
-    }
+  const parsed = await readJsonFile<Partial<SubscriptionFile>>(SUBSCRIPTIONS_FILE, {
+    version: 2,
+    subscriptions: [],
+  });
+  if (!parsed || !Array.isArray(parsed.subscriptions)) {
     return [];
   }
+
+  return parsed.subscriptions
+    .map(normalizeSubscription)
+    .filter(
+      (subscription): subscription is StoredSubscription => subscription !== null,
+    );
+}
+
+export async function getSubscription(
+  endpoint: string,
+): Promise<StoredSubscription | null> {
+  const subscriptions = await listSubscriptions();
+  return subscriptions.find((subscription) => subscription.endpoint === endpoint) ?? null;
 }
 
 export async function saveSubscription(
@@ -68,6 +158,18 @@ export async function saveSubscription(
     throw new Error("Invalid push subscription.");
   }
 
+  const subscriptions = await listSubscriptions();
+  const existing = subscriptions.find(
+    (item) => item.endpoint === subscription.endpoint,
+  );
+  const now = new Date().toISOString();
+  const preferences = subscription.preferences
+    ? normalizeDeliveryPreferences(
+        subscription.preferences,
+        existing?.preferences.timezone,
+      )
+    : existing?.preferences ?? normalizeDeliveryPreferences({});
+
   const stored: StoredSubscription = {
     endpoint: subscription.endpoint,
     keys: {
@@ -75,32 +177,64 @@ export async function saveSubscription(
       auth: subscription.keys.auth,
     },
     expirationTime: subscription.expirationTime ?? null,
-    createdAt: new Date().toISOString(),
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    preferences,
+    lastDeliveredAt: existing?.lastDeliveredAt,
+    lastEntryId: existing?.lastEntryId,
+    dailyDate: existing?.dailyDate,
+    dailyCount: existing?.dailyCount,
+    failures: existing?.failures,
+    outcomes: existing?.outcomes ?? [],
   };
 
-  const subscriptions = await listSubscriptions();
-  const next = subscriptions.filter((item) => item.endpoint !== stored.endpoint);
+  const next = subscriptions.filter(
+    (item) => item.endpoint !== subscription.endpoint,
+  );
   next.push(stored);
   await writeSubscriptions(next);
   return stored;
 }
 
+export async function updateSubscription(
+  endpoint: string,
+  updater: (subscription: StoredSubscription) => StoredSubscription,
+): Promise<StoredSubscription | null> {
+  const subscriptions = await listSubscriptions();
+  const index = subscriptions.findIndex(
+    (subscription) => subscription.endpoint === endpoint,
+  );
+  if (index === -1) {
+    return null;
+  }
+
+  const updated = updater(subscriptions[index]);
+  subscriptions[index] = {
+    ...updated,
+    endpoint,
+    updatedAt: new Date().toISOString(),
+    preferences: normalizeDeliveryPreferences(
+      updated.preferences,
+      updated.preferences.timezone,
+    ),
+  };
+  await writeSubscriptions(subscriptions);
+  return subscriptions[index];
+}
+
 export async function removeSubscription(endpoint: string): Promise<void> {
   const subscriptions = await listSubscriptions();
-  const next = subscriptions.filter((subscription) => subscription.endpoint !== endpoint);
+  const next = subscriptions.filter(
+    (subscription) => subscription.endpoint !== endpoint,
+  );
   if (next.length !== subscriptions.length) {
     await writeSubscriptions(next);
   }
 }
 
-async function writeSubscriptions(subscriptions: StoredSubscription[]): Promise<void> {
-  const file = dataFile();
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const temporary = `${file}.tmp`;
-  const payload: SubscriptionFile = { version: 1, subscriptions };
-  await fs.writeFile(temporary, `${JSON.stringify(payload, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  await fs.rename(temporary, file);
+async function writeSubscriptions(
+  subscriptions: StoredSubscription[],
+): Promise<void> {
+  const payload: SubscriptionFile = { version: 2, subscriptions };
+  await writeJsonFile(SUBSCRIPTIONS_FILE, payload);
 }
