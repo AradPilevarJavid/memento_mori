@@ -146,6 +146,12 @@ The implementation should validate a web-first, cross-platform architecture befo
 
 These are implementation directions, not reasons to over-engineer the first milestone. Step 1 should establish the content, voice, and notification experience that make MEMENTO worth building.
 
+## GitHub Pages
+
+The static project overview is published from `docs/` at [aradpilevarjavid.github.io/memento_mori](https://aradpilevarjavid.github.io/memento_mori/). It is a project landing page, not a hosted instance of the Next.js application; the app's server routes and push-delivery features require a runtime that GitHub Pages does not provide.
+
+The `Deploy GitHub Pages` workflow publishes the site on pushes to `master` and can also be started manually. In the repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**.
+
 ## Running locally
 
 ```bash
