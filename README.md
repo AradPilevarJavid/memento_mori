@@ -4,6 +4,9 @@ MEMENTO MORI is a philosophical notification companion inspired by the Roman tra
 
 It is not a task manager, habit tracker, or conventional productivity reminder. Its purpose is to interrupt ordinary life with ideas worth remembering.
 
+### live url
+[memento_mori](https://aradpilevarjavid.github.io/memento_mori/)
+
 ## The idea
 
 > To periodically interrupt ordinary life with reminders of mortality, impermanence, humility, human nature, and the realities people tend to forget.
